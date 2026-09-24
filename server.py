@@ -452,23 +452,26 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS AI - Oracle Fusion ERP Supplier Risk Command Center</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <title>AEGIS AI AUDITOR - Enterprise Oracle Fusion ERP Risk Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-deep: #080d1a;
-            --panel-bg: rgba(18, 26, 47, 0.75);
-            --panel-border: rgba(56, 189, 248, 0.15);
-            --panel-border-glow: rgba(56, 189, 248, 0.4);
+            --bg-deep: #050914;
+            --bg-canvas: #090f20;
+            --panel-bg: rgba(13, 22, 44, 0.75);
+            --panel-border: rgba(0, 242, 254, 0.18);
+            --panel-border-glow: rgba(0, 242, 254, 0.45);
             --accent-cyan: #00f2fe;
             --accent-blue: #38bdf8;
             --accent-indigo: #6366f1;
+            --accent-magenta: #e056fd;
             --accent-emerald: #10b981;
             --accent-amber: #f59e0b;
             --accent-crimson: #ff0055;
-            --text-main: #f1f5f9;
+            --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --font-main: 'Outfit', sans-serif;
+            --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
         }
 
@@ -478,51 +481,53 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             font-family: var(--font-main);
             background-color: var(--bg-deep);
             background-image: 
-                radial-gradient(circle at 15% 15%, rgba(0, 242, 254, 0.08) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.1) 0%, transparent 45%);
+                radial-gradient(circle at 10% 10%, rgba(0, 242, 254, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 90% 90%, rgba(224, 86, 253, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
             color: var(--text-main);
-            padding: 2rem;
+            padding: 1.75rem;
             min-height: 100vh;
         }
 
+        /* TOP NAVIGATION BAR */
         .navbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(16px);
+            background: rgba(13, 22, 44, 0.85);
+            backdrop-filter: blur(20px);
             border: 1px solid var(--panel-border);
             padding: 1rem 1.75rem;
-            border-radius: 16px;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            border-radius: 18px;
+            margin-bottom: 1.75rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1);
         }
 
         .brand-logo {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
         }
 
         .brand-icon {
-            width: 36px;
-            height: 36px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
-            border-radius: 10px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 800;
-            font-size: 1.2rem;
-            color: #080d1a;
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.5);
+            font-weight: 900;
+            font-size: 1.4rem;
+            color: #050914;
+            box-shadow: 0 0 25px rgba(0, 242, 254, 0.6);
         }
 
         .brand-title h1 {
-            font-size: 1.25rem;
-            font-weight: 700;
+            font-size: 1.35rem;
+            font-weight: 800;
             letter-spacing: -0.02em;
-            background: linear-gradient(135deg, #ffffff, var(--accent-cyan));
+            background: linear-gradient(135deg, #ffffff 30%, var(--accent-cyan));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -532,19 +537,39 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.08em;
+            font-weight: 600;
         }
 
-        .live-status {
+        .nav-items {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: var(--accent-emerald);
-            padding: 0.5rem 1rem;
+            gap: 1.5rem;
+        }
+
+        .nav-link {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: var(--accent-cyan);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: rgba(0, 242, 254, 0.08);
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            color: var(--accent-cyan);
+            padding: 0.5rem 1.1rem;
             border-radius: 9999px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
         }
 
         .pulse-dot {
@@ -561,79 +586,95 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
+        /* TOP METRICS BANNER */
         .metrics-banner {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 1.25rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
         }
 
         .kpi-card {
             background: var(--panel-bg);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
             border: 1px solid var(--panel-border);
-            padding: 1.25rem;
-            border-radius: 14px;
-            transition: all 0.3s ease;
+            padding: 1.35rem 1.5rem;
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: linear-gradient(180deg, var(--accent-cyan), transparent);
         }
 
         .kpi-card:hover {
             border-color: var(--panel-border-glow);
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(0, 242, 254, 0.15);
         }
 
         .kpi-title {
             font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
+            font-weight: 700;
         }
 
         .kpi-value {
             font-family: var(--font-mono);
-            font-size: 1.6rem;
-            font-weight: 700;
+            font-size: 1.85rem;
+            font-weight: 800;
             margin-top: 0.4rem;
             color: #ffffff;
+            letter-spacing: -0.02em;
         }
 
         .kpi-sub {
             font-size: 0.75rem;
             color: var(--accent-cyan);
-            margin-top: 0.25rem;
+            margin-top: 0.3rem;
+            font-weight: 600;
         }
 
+        /* MAIN TWO COLUMN LAYOUT */
         .layout-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1.15fr 0.85fr;
             gap: 1.75rem;
         }
 
         .glass-panel {
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
             border: 1px solid var(--panel-border);
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 1.75rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.05);
         }
 
         .panel-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.25rem;
-            padding-bottom: 0.75rem;
-            border-bottom: 1px solid var(--panel-border);
+            margin-bottom: 1.35rem;
+            padding-bottom: 0.85rem;
+            border-bottom: 1px solid rgba(0, 242, 254, 0.12);
         }
 
         .panel-title {
-            font-size: 1.1rem;
-            font-weight: 700;
+            font-size: 1.15rem;
+            font-weight: 800;
             color: #ffffff;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.6rem;
+            letter-spacing: -0.01em;
         }
 
         .scenario-chips {
@@ -642,25 +683,26 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         .chip-btn {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.04);
             border: 1px solid var(--panel-border);
             color: var(--text-muted);
-            padding: 0.35rem 0.75rem;
-            border-radius: 8px;
+            padding: 0.4rem 0.85rem;
+            border-radius: 10px;
             font-size: 0.75rem;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s;
         }
 
         .chip-btn:hover, .chip-btn.active {
-            background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(99, 102, 241, 0.2));
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(99, 102, 241, 0.25));
             color: var(--accent-cyan);
             border-color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
         }
 
         .slider-group {
-            margin-bottom: 1rem;
+            margin-bottom: 1.15rem;
         }
 
         .slider-label {
@@ -668,65 +710,70 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             justify-content: space-between;
             font-size: 0.85rem;
             color: var(--text-muted);
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.45rem;
+            font-weight: 600;
         }
 
         .slider-label span:last-child {
             font-family: var(--font-mono);
             color: var(--accent-cyan);
-            font-weight: 700;
+            font-weight: 800;
+            font-size: 0.95rem;
         }
 
         input[type="range"] {
             width: 100%;
-            height: 6px;
-            border-radius: 3px;
-            background: #1e293b;
+            height: 7px;
+            border-radius: 4px;
+            background: #111a33;
             outline: none;
             accent-color: var(--accent-cyan);
+            cursor: pointer;
         }
 
         .btn-trigger {
             width: 100%;
             background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
-            color: #080d1a;
-            font-weight: 800;
-            font-size: 1rem;
-            padding: 0.9rem;
+            color: #050914;
+            font-weight: 900;
+            font-size: 1.05rem;
+            padding: 1rem;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
-            margin-top: 1rem;
+            margin-top: 1.25rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            box-shadow: 0 0 25px rgba(0, 242, 254, 0.3);
-            transition: all 0.3s;
+            letter-spacing: 0.06em;
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .btn-trigger:hover {
             transform: translateY(-2px);
-            box-shadow: 0 0 35px rgba(0, 242, 254, 0.6);
+            box-shadow: 0 0 45px rgba(0, 242, 254, 0.7);
         }
 
+        /* AUDIT RESULT DISPLAY */
         .risk-badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.4rem 0.9rem;
-            border-radius: 8px;
-            font-weight: 800;
+            gap: 0.5rem;
+            padding: 0.45rem 1rem;
+            border-radius: 10px;
+            font-weight: 900;
             font-size: 0.85rem;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
+            font-family: var(--font-mono);
         }
 
-        .badge-LOW { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-        .badge-HIGH { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-        .badge-CRITICAL { background: rgba(255, 0, 85, 0.2); color: #ff4d7d; border: 1px solid rgba(255, 0, 85, 0.4); box-shadow: 0 0 15px rgba(255, 0, 85, 0.3); }
+        .badge-LOW { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5); box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        .badge-HIGH { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
+        .badge-CRITICAL { background: rgba(255, 0, 85, 0.2); color: #ff4d7d; border: 1px solid rgba(255, 0, 85, 0.5); box-shadow: 0 0 20px rgba(255, 0, 85, 0.4); }
 
         .action-box {
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(9, 15, 32, 0.95);
             border: 1px solid var(--panel-border);
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 1.25rem;
             margin-top: 1rem;
         }
@@ -735,50 +782,51 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.75rem;
         }
 
         .action-title {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
+            font-weight: 700;
         }
 
         .action-value {
             font-family: var(--font-mono);
-            font-size: 1.1rem;
-            font-weight: 700;
+            font-size: 1.15rem;
+            font-weight: 800;
             color: var(--accent-cyan);
         }
 
         .reasoning-terminal {
-            background: #040812;
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 8px;
-            padding: 1rem;
+            background: #03060f;
+            border: 1px solid rgba(0, 242, 254, 0.15);
+            border-radius: 10px;
+            padding: 1.1rem;
             font-family: var(--font-mono);
             font-size: 0.8rem;
             color: #a5f3fc;
             line-height: 1.6;
-            max-height: 200px;
+            max-height: 220px;
             overflow-y: auto;
             white-space: pre-wrap;
         }
 
-        /* GEMINI AI CHATBOT PANEL STYLES */
+        /* GEMINI UNIVERSAL RAG CHATBOT UI */
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 480px;
-            background: #040812;
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 12px;
+            height: 520px;
+            background: #03060f;
+            border: 1px solid rgba(0, 242, 254, 0.15);
+            border-radius: 14px;
             overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
         }
 
         .chat-history {
             flex: 1;
-            padding: 1rem;
+            padding: 1.1rem;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -788,87 +836,93 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
         .chat-msg {
             display: flex;
             flex-direction: column;
-            max-width: 90%;
-            font-size: 0.85rem;
-            line-height: 1.5;
+            max-width: 92%;
+            font-size: 0.88rem;
+            line-height: 1.55;
         }
 
         .chat-msg.user {
             align-self: flex-end;
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.2));
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            color: #fff;
-            padding: 0.75rem 1rem;
-            border-radius: 12px 12px 0 12px;
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(99, 102, 241, 0.25));
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            color: #ffffff;
+            padding: 0.85rem 1.15rem;
+            border-radius: 14px 14px 2px 14px;
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.15);
         }
 
         .chat-msg.bot {
             align-self: flex-start;
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(18, 28, 54, 0.9);
+            border: 1px solid rgba(0, 242, 254, 0.15);
             color: #e2e8f0;
-            padding: 0.85rem 1.1rem;
-            border-radius: 12px 12px 12px 0;
+            padding: 0.95rem 1.2rem;
+            border-radius: 14px 14px 14px 2px;
             white-space: pre-wrap;
         }
 
         .chat-input-bar {
             display: flex;
-            gap: 0.5rem;
-            padding: 0.75rem;
-            background: rgba(15, 23, 42, 0.95);
+            gap: 0.6rem;
+            padding: 0.85rem;
+            background: rgba(9, 15, 32, 0.98);
             border-top: 1px solid var(--panel-border);
         }
 
         .chat-input {
             flex: 1;
-            background: #0b1329;
+            background: #080e21;
             border: 1px solid var(--panel-border);
             color: #fff;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
+            padding: 0.85rem 1.1rem;
+            border-radius: 10px;
             font-family: var(--font-main);
             font-size: 0.9rem;
             outline: none;
+            transition: border-color 0.2s;
         }
 
         .chat-input:focus {
             border-color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.25);
         }
 
         .btn-chat-send {
             background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
-            color: #080d1a;
+            color: #050914;
             border: none;
-            padding: 0 1.25rem;
+            padding: 0 1.5rem;
+            border-radius: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-chat-send:hover { opacity: 0.9; transform: scale(1.02); }
+
+        .quick-prompts {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.85rem;
+        }
+
+        .prompt-tag {
+            background: rgba(0, 242, 254, 0.06);
+            border: 1px solid rgba(0, 242, 254, 0.2);
+            color: var(--accent-cyan);
+            font-size: 0.75rem;
+            padding: 0.35rem 0.7rem;
             border-radius: 8px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.2s;
         }
+        .prompt-tag:hover { background: rgba(0, 242, 254, 0.2); border-color: var(--accent-cyan); }
 
-        .btn-chat-send:hover { opacity: 0.9; }
-
-        .quick-prompts {
-            display: flex;
-            gap: 0.4rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.75rem;
-        }
-
-        .prompt-tag {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: var(--accent-cyan);
-            font-size: 0.75rem;
-            padding: 0.3rem 0.6rem;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        .prompt-tag:hover { background: rgba(0, 242, 254, 0.15); }
-
+        /* SOX TABLE STYLES */
         .table-container {
-            margin-top: 2rem;
+            margin-top: 1.5rem;
             overflow-x: auto;
         }
 
@@ -879,23 +933,39 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
         }
 
         th {
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(9, 15, 32, 0.95);
             color: var(--text-muted);
             text-transform: uppercase;
             font-size: 0.7rem;
-            letter-spacing: 0.05em;
-            padding: 0.75rem 1rem;
+            letter-spacing: 0.06em;
+            padding: 0.85rem 1.1rem;
             text-align: left;
             border-bottom: 1px solid var(--panel-border);
+            font-weight: 700;
         }
 
         td {
-            padding: 0.85rem 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 0.95rem 1.1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
         }
 
         tr:hover td {
-            background: rgba(56, 189, 248, 0.03);
+            background: rgba(0, 242, 254, 0.04);
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            margin-top: 1.5rem;
+        }
+
+        .chart-box {
+            background: #03060f;
+            border: 1px solid rgba(0, 242, 254, 0.12);
+            border-radius: 12px;
+            padding: 1rem;
+            height: 180px;
         }
     </style>
 </head>
@@ -905,20 +975,26 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
         <div class="brand-logo">
             <div class="brand-icon">A</div>
             <div class="brand-title">
-                <h1>AEGIS AI COMMAND CENTER</h1>
-                <p>Oracle Fusion Cloud ERP &bull; Autonomous Diligence Agent</p>
+                <h1>AEGIS AI AUDITOR COMMAND CENTER</h1>
+                <p>Oracle Fusion Cloud ERP &bull; Autonomous Diligence System</p>
             </div>
         </div>
-        <div class="live-status">
-            <div class="pulse-dot"></div>
-            <span>UNIVERSAL GEMINI CHAT ACTIVE</span>
+        <div class="nav-items">
+            <a href="#" class="nav-link active">Overview</a>
+            <a href="#" class="nav-link">Monitoring</a>
+            <a href="#" class="nav-link">Reports</a>
+            <a href="#" class="nav-link">Configuration</a>
+            <div class="status-badge">
+                <div class="pulse-dot"></div>
+                <span>GEMINI 2.5 FLASH ACTIVE</span>
+            </div>
         </div>
     </div>
 
     <div class="metrics-banner">
         <div class="kpi-card">
             <div class="kpi-title">Active Monitored Vendors</div>
-            <div class="kpi-value">5</div>
+            <div class="kpi-value" style="color: var(--accent-cyan);">5</div>
             <div class="kpi-sub">V_SUPPLIER_RISK_360 View</div>
         </div>
         <div class="kpi-card">
@@ -939,12 +1015,12 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
     </div>
 
     <div class="layout-grid">
-        <!-- Column 1: Supplier Telemetry & Audit Output -->
+        <!-- Column 1: Supplier Telemetry Stress-Test & Decision Output -->
         <div>
             <div class="glass-panel" style="margin-bottom: 1.75rem;">
                 <div class="panel-header">
                     <div class="panel-title">
-                        <span>1. Supplier Telemetry & Stress Test</span>
+                        <span>1. Supplier Telemetry Stress-Test</span>
                     </div>
                     <div class="scenario-chips">
                         <button class="chip-btn active" onclick="loadPreset(0)">TC1: Safe</button>
@@ -954,8 +1030,8 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                 </div>
 
                 <div style="margin-bottom: 1.25rem;">
-                    <label style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Select Vendor Record</label>
-                    <select id="vendorSelect" onchange="onVendorSelect()" style="width:100%; padding:0.75rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:8px; margin-top:0.4rem; font-family:var(--font-main);">
+                    <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Select Vendor Record</label>
+                    <select id="vendorSelect" onchange="onVendorSelect()" style="width:100%; padding:0.8rem; background:#080e21; border:1px solid var(--panel-border); color:#fff; border-radius:10px; margin-top:0.4rem; font-family:var(--font-main); font-weight:600; outline:none;">
                     </select>
                 </div>
 
@@ -991,17 +1067,17 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                     <input type="range" id="rngOnTime" min="40.0" max="100.0" step="0.5" value="96.0" oninput="updateSliderLabels()">
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1.1rem;">
                     <div>
-                        <label style="font-size:0.75rem; color:var(--text-muted);">SINGLE SOURCE SUPPLIER</label>
-                        <select id="selSingleSource" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
+                        <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">SINGLE SOURCE SUPPLIER</label>
+                        <select id="selSingleSource" style="width:100%; padding:0.65rem; background:#080e21; border:1px solid var(--panel-border); color:#fff; border-radius:8px; margin-top:0.35rem; font-weight:600;" onchange="updateSliderLabels()">
                             <option value="0">0 - Multi-Sourced Category</option>
                             <option value="1">1 - Sole Vendor for Category</option>
                         </select>
                     </div>
                     <div>
-                        <label style="font-size:0.75rem; color:var(--text-muted);">CREDIT RATING</label>
-                        <select id="selCreditRating" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
+                        <label style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">CREDIT RATING</label>
+                        <select id="selCreditRating" style="width:100%; padding:0.65rem; background:#080e21; border:1px solid var(--panel-border); color:#fff; border-radius:8px; margin-top:0.35rem; font-weight:600;" onchange="updateSliderLabels()">
                             <option value="AA-">AA- (Investment Grade)</option>
                             <option value="A-">A- (Investment Grade)</option>
                             <option value="BBB-">BBB- (Minimum Threshold)</option>
@@ -1016,30 +1092,31 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                 <button class="btn-trigger" onclick="runAutonomousAudit()">⚡ Run Gemini Diligence Audit</button>
             </div>
 
+            <!-- Audit Decision Output Glass Panel -->
             <div class="glass-panel">
                 <div class="panel-header">
                     <div class="panel-title">
-                        <span>Audit Decision Output</span>
+                        <span>Gemini Agent Audit Assessment</span>
                     </div>
                     <span id="auditTimestamp" style="font-size: 0.75rem; color: var(--text-muted);">Ready</span>
                 </div>
 
                 <div id="outputDisplay">
-                    <div style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">
+                    <div style="text-align:center; padding:2.5rem 1rem; color:var(--text-muted);">
                         <p style="font-size:0.95rem; margin-bottom:0.5rem;">Click "Run Gemini Diligence Audit" to execute checks.</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Column 2: Universal Gemini AI Chatbot Assistant -->
+        <!-- Column 2: Universal Gemini AI RAG Chatbot Assistant -->
         <div class="glass-panel">
             <div class="panel-header">
                 <div class="panel-title">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg>
-                    <span>Universal Gemini AI Assistant</span>
+                    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg>
+                    <span>Universal Gemini Enterprise Assistant ✨</span>
                 </div>
-                <span style="font-size: 0.75rem; color: var(--accent-cyan);">Real-Time NLP & RAG</span>
+                <span style="font-size: 0.75rem; color: var(--accent-cyan); font-weight:700;">Real-Time RAG</span>
             </div>
 
             <div class="quick-prompts">
@@ -1053,9 +1130,9 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                 <div class="chat-history" id="chatHistory">
                     <div class="chat-msg bot">
 🤖 <strong>Aegis Universal Gemini Enterprise Assistant</strong>
-Hello! I can answer <strong>ANY</strong> question—whether it's real-time Oracle ERP metrics (rejection rates, PO exposure, credit ratings), global logistics signals, or general knowledge.
+Hello! I have real-time access to <code>V_SUPPLIER_RISK_360</code> records, quality inspection logs, and global risk signals.
 
-Try asking me anything!
+Ask me anything about supplier health, quality rejections, or general knowledge!
                     </div>
                 </div>
 
@@ -1067,7 +1144,7 @@ Try asking me anything!
         </div>
     </div>
 
-    <!-- Panel 3: SOX Audit Log Table -->
+    <!-- Panel 3: Visual Analytics Charts & SOX Audit Ledger -->
     <div class="glass-panel" style="margin-top: 2rem;">
         <div class="panel-header">
             <div class="panel-title">
@@ -1112,8 +1189,8 @@ Try asking me anything!
         }
 
         function loadPreset(idx) {
-            document.querySelectorAll('.chip-btn').forEach((b, i) => {
-                if (i < 3) b.classList.toggle('active', i === idx);
+            document.querySelectorAll('.scenario-chips .chip-btn').forEach((b, i) => {
+                b.classList.toggle('active', i === idx);
             });
 
             document.getElementById('vendorSelect').value = idx;
@@ -1168,9 +1245,9 @@ Try asking me anything!
             };
 
             document.getElementById('outputDisplay').innerHTML = `
-                <div style="padding:1.5rem; text-align:center;">
-                    <div style="color:var(--accent-cyan); font-weight:700; font-size:1rem; margin-bottom:0.4rem;">⚡ Gemini Reasoning...</div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">Enforcing Business Rules & SOX Controls</div>
+                <div style="padding:2rem; text-align:center;">
+                    <div style="color:var(--accent-cyan); font-weight:800; font-size:1.1rem; margin-bottom:0.5rem;">⚡ Gemini Agent Reasoning...</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">Evaluating Financial Diligence & SCM Business Rules</div>
                 </div>
             `;
 
@@ -1198,12 +1275,12 @@ Try asking me anything!
             document.getElementById('outputDisplay').innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                     <div><span class="risk-badge ${badgeClass}">${rating} RISK</span></div>
-                    <div style="font-size:0.8rem; color:var(--text-muted);">SOX: <strong style="color:${res.sox_compliance_flag ? '#34d399' : '#ff4d7d'};">${res.sox_compliance_flag ? 'PASSED ✅' : 'FLAGGED ⚠️'}</strong></div>
+                    <div style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">SOX Compliance: <strong style="color:${res.sox_compliance_flag ? '#34d399' : '#ff4d7d'};">${res.sox_compliance_flag ? 'PASSED ✅' : 'FLAGGED ⚠️'}</strong></div>
                 </div>
 
                 <div class="action-box">
                     <div class="action-header">
-                        <span class="action-title">ACTION TRIGGERED</span>
+                        <span class="action-title">RECOMMENDED ERP ACTION</span>
                         <span class="action-value">${action}</span>
                     </div>
                 </div>
@@ -1226,7 +1303,7 @@ Try asking me anything!
 
             tbody.innerHTML = logs.map(l => `
                 <tr>
-                    <td style="font-family:var(--font-mono); font-weight:700; color:var(--accent-cyan);">#${l.log_id}</td>
+                    <td style="font-family:var(--font-mono); font-weight:800; color:var(--accent-cyan);">#${l.log_id}</td>
                     <td><strong>${l.vendor_name}</strong></td>
                     <td><span class="risk-badge badge-${l.risk_rating}">${l.risk_rating}</span></td>
                     <td><strong style="font-family:var(--font-mono); color:#fff;">${l.action_recommended}</strong></td>
