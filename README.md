@@ -14,7 +14,7 @@
   <b>An end-to-end enterprise solution combining Oracle ERP database aggregation, Google Gemini GenAI agents, OCI Functions, Oracle APEX PL/SQL governance handlers, and an interactive real-time Command Center with an integrated Universal RAG Chatbot.</b>
 </p>
 
-[Key Features](#-key-features) • [System Architecture](#-system-architecture) • [5-Step Technical Stack](#-5-step-technical-stack) • [Quick Start & Local Dashboard](#-quick-start--local-dashboard) • [SOX Compliance](#-sox-compliance--audit-trail)
+[Key Features](#-key-features) • [System Screenshots](#-system-screenshots) • [System Architecture](#-system-architecture) • [5-Step Technical Stack](#-5-step-technical-stack) • [Quick Start & Local Dashboard](#-quick-start--local-dashboard)
 
 ---
 
@@ -22,6 +22,19 @@
 
 > [!IMPORTANT]
 > **BUSINESS PROBLEM SOLVED**: Enterprise procurement systems in Oracle Fusion ERP often suffer from fragmented supplier visibility. Financial distress (low quick ratio, high debt-to-equity) combined with single-source supply chain bottlenecks leads to costly line-down shutdowns. **Aegis AI Auditor** continuously calculates a 360-degree supplier risk matrix over rolling 180-day windows and autonomously enforces purchase order holds and BPM workflow escalations.
+
+---
+
+## 📸 System Screenshots
+
+### 1. Enterprise Command Center Dashboard
+![Enterprise Command Center Dashboard Overview](assets/dashboard_overview.png)
+
+### 2. Interactive Telemetry Stress-Test Sandbox
+![Supplier Risk Telemetry Sandbox](assets/stress_test_sandbox.png)
+
+### 3. Universal Gemini RAG AI Chatbot Assistant
+![Universal Gemini Enterprise Assistant Chatbot](assets/universal_rag_chatbot.png)
 
 ---
 
@@ -86,71 +99,23 @@
 ## 🛠️ 5-Step Technical Stack
 
 ### Step 1: Database Aggregation View (`v_supplier_risk_360.sql`)
-Creates an optimized database view preventing multi-table row explosion using modular Common Table Expressions (CTEs):
-```sql
-CREATE OR REPLACE VIEW V_SUPPLIER_RISK_360 AS
-WITH po_summary AS (
-    SELECT vendor_id, COUNT(po_header_id) AS active_po_count, SUM(approved_amount) AS total_po_value
-    FROM po_headers_all WHERE authorization_status = 'APPROVED' GROUP BY vendor_id
-),
-ap_summary AS (
-    SELECT vendor_id, ROUND(AVG(NVL(payment_due_date, SYSDATE) - terms_date), 1) AS avg_payment_delay_days
-    FROM ap_invoices_all WHERE creation_date >= SYSDATE - 180 GROUP BY vendor_id
-)
-SELECT v.vendor_id, v.vendor_name, v.attribute1 AS credit_rating,
-       TO_NUMBER(v.attribute2) AS quick_ratio, TO_NUMBER(v.attribute3) AS debt_to_equity,
-       NVL(ps.total_po_value, 0) AS total_po_value, NVL(aps.avg_payment_delay_days, 0) AS avg_payment_delay_days
-FROM po_vendors v
-LEFT JOIN po_summary ps ON v.vendor_id = ps.vendor_id
-LEFT JOIN ap_summary aps ON v.vendor_id = aps.vendor_id;
-```
-
----
+Creates an optimized database view preventing multi-table row explosion using modular Common Table Expressions (CTEs).
 
 ### Step 2: Gemini Core System Instructions (`system_instruction.txt` & `gemini_auditor_agent.py`)
-Enforces strict financial liquidity and supply chain disruption rules with Pydantic JSON schema output:
-* **Rule 1 (Liquidity Risk)**: If `Quick Ratio < 1.0` OR `Debt-to-Equity > 2.5` OR `Credit Rating < BBB-` $\rightarrow$ `financial_risk = HIGH`.
-* **Rule 2 (Supply Bottleneck)**: If `On-Time Delivery < 80%` AND `Single Source Flag == 1` $\rightarrow$ `supply_chain_risk = CRITICAL`.
-* **Rule 3 (ERP Action Matrix)**:
-  * `financial_risk == HIGH` & `PO Value > $100k` $\rightarrow$ Action: `HOLD_PO_PAYOUTS`.
-  * `supply_chain_risk == CRITICAL` $\rightarrow$ Action: `REROUTE_SUPPLIER_ALLOCATION`.
-
----
+Enforces financial liquidity and supply chain disruption rules with Pydantic JSON schema output.
 
 ### Step 3: Payload Integration Engine (`handler.py` & `func.yaml`)
 Prepares structured JSON payloads combining Oracle DB metrics with real-time port congestion indices for OCI Functions deployment.
 
----
-
 ### Step 4: Oracle APEX & PL/SQL Governance Package (`supplier_risk_governance_pkg.sql`)
-Executes governance decisions inside Oracle Fusion Cloud ERP:
-```sql
-CREATE TABLE AI_FINANCIAL_AUDIT_LOG (
-    log_id                 NUMBER PRIMARY KEY,
-    vendor_id              NUMBER NOT NULL,
-    overall_risk_rating    VARCHAR2(50),
-    recommended_action     VARCHAR2(100),
-    sox_compliance_flag    VARCHAR2(5) DEFAULT 'TRUE',
-    creation_date          DATE DEFAULT SYSDATE
-);
-```
-
----
+Executes governance decisions inside Oracle Fusion Cloud ERP via PL/SQL package `PKG_SUPPLIER_RISK_GOVERNANCE`.
 
 ### Step 5: Test Verification Matrix (`test_suite.json` & `run_verification_matrix.py`)
-
-| Test Case | Scenario Description | Quick Ratio | Debt/Equity | Delivery Rate | Gemini Output Rating | Triggered ERP Action |
-| :---: | :--- | :---: | :---: | :---: | :---: | :--- |
-| **TC1** | Healthy Vendor | 1.85 | 1.10 | 96.5% | `LOW` | `APPROVE` |
-| **TC2** | Liquidity Crisis | 0.68 | 3.65 | 86.0% | `HIGH` | `HOLD_PO_PAYOUTS` |
-| **TC3** | Supply Bottleneck | 0.92 | 2.25 | 64.5% | `CRITICAL` | `REROUTE_SUPPLIER_ALLOCATION` |
+Provides complete end-to-end verification across Test Cases 1 (Healthy), 2 (Liquidity Crisis), and 3 (Supply Bottleneck).
 
 ---
 
 ## 💻 Quick Start & Local Dashboard
-
-> [!NOTE]
-> The repository includes a zero-dependency standalone server providing both a REST API and an interactive web command center.
 
 ### 1. Run the Command Center Server
 ```bash
@@ -161,27 +126,8 @@ python3 server.py
 ### 2. Access the Interactive Dashboard
 Open your browser at **[http://localhost:8080](http://localhost:8080)**.
 
-### 3. Test REST API Endpoints via `cURL`
-```bash
-# Fetch Monitored Suppliers
-curl -s http://localhost:8080/api/suppliers
-
-# Trigger AI Audit
-curl -s -X POST http://localhost:8080/api/audit \
-  -H "Content-Type: application/json" \
-  -d '{"supplier_context": {"vendor_id": 100102, "financials": {"quick_ratio": 0.68, "debt_to_equity": 3.65, "credit_rating": "B-"}, "scm_performance": {"total_po_value": 540000.00, "on_time_delivery_rate": 86.0, "single_source_flag": 0}}}'
-
-# Query Universal Gemini Chatbot
-curl -s -X POST http://localhost:8080/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "suppliers with rejection data"}'
-```
-
----
-
-## 🔒 SOX Compliance & Audit Trail
-
-All governance decisions are logged immutably into `AI_FINANCIAL_AUDIT_LOG` with surrogate sequence IDs, timestamps, compliance status flags, and agent reasoning. This guarantees full auditability for Sarbanes-Oxley (SOX) compliance officers and internal auditors.
+### 3. Detailed Walkthrough Document
+For complete working steps and SQL code scripts, see [WALKTHROUGH.md](WALKTHROUGH.md).
 
 ---
 
