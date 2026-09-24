@@ -1,6 +1,6 @@
 """
-AEGIS AI AUDITOR - Oracle Fusion Cloud ERP Risk Command Center
-Persistent Test Server (Listens on 0.0.0.0:8080 and 127.0.0.1:8080)
+AEGIS AI AUDITOR - Oracle Fusion Cloud ERP Risk Command Center + Live Gemini Chatbot Assistant
+Interactive Enterprise Web Dashboard & Universal Data Retrieval API Server
 """
 
 import http.server
@@ -215,6 +215,86 @@ def evaluate_supplier_rules(supplier_ctx: dict) -> dict:
         "sox_compliance_flag": sox_flag
     }
 
+def process_chat_assistant(user_prompt: str) -> str:
+    """
+    Handles conversational RAG / AI Chat over Oracle V_SUPPLIER_RISK_360 database data.
+    Uses Gemini API if key is set, or intelligent context engine fallback.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY")
+    system_context = f"""
+You are Aegis Gemini AI, an enterprise supply chain intelligence assistant for Oracle Fusion Cloud ERP.
+You have real-time access to the V_SUPPLIER_RISK_360 database view, SOX Audit Ledger, and external logistics feeds.
+
+CURRENT MONITORED SUPPLIERS IN ORACLE DATABASE:
+{json.dumps(MOCK_SUPPLIERS, indent=2)}
+
+RECENT SOX AUDIT LOGS:
+{json.dumps(AUDIT_LOGS[:5], indent=2)}
+
+Provide clear, professional, concise, bulleted responses with actionable SCM recommendations.
+"""
+
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client()
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"{system_context}\n\nUser Question: {user_prompt}",
+            )
+            return response.text
+        except Exception as e:
+            print(f"Chatbot Gemini API fallback: {e}")
+
+    # Fallback Intelligent Query Engine
+    prompt_lower = user_prompt.lower()
+    if "high" in prompt_lower or "critical" in prompt_lower or "risk" in prompt_lower:
+        high_risk_vendors = [s for s in MOCK_SUPPLIERS if s["financials"]["quick_ratio"] < 1.0 or s["scm_performance"]["single_source_flag"] == 1]
+        lines = ["🤖 **Aegis AI Auditor Analysis - Supplier Risk Query**\n"]
+        lines.append(f"Identified **{len(high_risk_vendors)} vendors** exhibiting elevated risk in Oracle `V_SUPPLIER_RISK_360`:\n")
+        for v in high_risk_vendors:
+            fin = v["financials"]
+            scm = v["scm_performance"]
+            lines.append(f"• **{v['vendor_name']}** (`{v['vendor_number']}` | Category: *{v['category']}*)")
+            lines.append(f"  - **Quick Ratio**: `{fin['quick_ratio']}` | **Debt/Equity**: `{fin['debt_to_equity']}` | **Credit Grade**: `{fin['credit_rating']}`")
+            lines.append(f"  - **PO Value at Exposure**: `${scm['total_po_value']:,.2f}` | **On-Time Delivery**: `{scm['on_time_delivery_rate']}%`")
+            lines.append(f"  - **Single Source Flag**: `{scm['single_source_flag']}` | **Port Congestion**: `{v['external_risk_signals']['port_congestion_index']}`")
+            lines.append("")
+        lines.append("⚡ **Recommended ERP Action**: Hold payouts for high liquidity risk vendors and trigger BPM workflow escalation (`SUPPLIER_RISK_ESCALATION`) for single-source critical suppliers.")
+        return "\n".join(lines)
+
+    elif "po" in prompt_lower or "value" in prompt_lower or "exposure" in prompt_lower or "total" in prompt_lower:
+        total_val = sum(s["scm_performance"]["total_po_value"] for s in MOCK_SUPPLIERS)
+        single_src_val = sum(s["scm_performance"]["total_po_value"] for s in MOCK_SUPPLIERS if s["scm_performance"]["single_source_flag"] == 1)
+        return (
+            f"📊 **Oracle Fusion ERP Open PO Exposure Metrics**\n\n"
+            f"• **Total Open PO Value Monitored**: `${total_val:,.2f}` across {len(MOCK_SUPPLIERS)} active suppliers.\n"
+            f"• **Single-Source Category Exposure**: `${single_src_val:,.2f}` (Titan Precision Forgings & Kuroda Optical Sensors).\n"
+            f"• **Highest Exposure Supplier**: **Kuroda Optical Sensors Ltd** (`$620,000.00` active PO value, Quick Ratio 0.75).\n\n"
+            f"🔒 *All audit decisions are logged to `AI_FINANCIAL_AUDIT_LOG` for SOX compliance.*"
+        )
+
+    elif "port" in prompt_lower or "logistics" in prompt_lower or "congestion" in prompt_lower or "signal" in prompt_lower:
+        return (
+            f"🌐 **Real-Time External Supply Chain Risk Signals**\n\n"
+            f"• **Titan Precision Forgings**: Port Congestion Index = `CRITICAL` | Geopolitical Risk = `84/100` | Credit Downgrade: `YES`.\n"
+            f"• **Kuroda Optical Sensors**: Port Congestion Index = `HIGH` | Geopolitical Risk = `91/100` | Credit Downgrade: `YES`.\n"
+            f"• **Vanguard Logistics**: Port Congestion Index = `HIGH` | Geopolitical Risk = `68/100`.\n\n"
+            f"💡 **AI Recommendation**: Enable multi-modal freight rerouting for Pacific routes to bypass port delays."
+        )
+
+    else:
+        return (
+            f"🤖 **Aegis AI Assistant for Oracle Fusion Cloud ERP**\n\n"
+            f"I am connected to the `V_SUPPLIER_RISK_360` database view and `AI_FINANCIAL_AUDIT_LOG` table.\n\n"
+            f"**Suggested Queries You Can Ask Me:**\n"
+            f"1. *\"Which suppliers are at high financial liquidity risk?\"*\n"
+            f"2. *\"Show total open PO value and single-source exposure\"*\n"
+            f"3. *\"Check port congestion and logistics external risk signals\"*\n"
+            f"4. *\"Explain SOX audit compliance requirements for automated PO holds\"*"
+        )
+
 class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -238,7 +318,25 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/audit":
+        if parsed.path == "/api/chat":
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode("utf-8"))
+                user_msg = payload.get("message", "")
+                reply = process_chat_assistant(user_msg)
+                
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"reply": reply}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+        elif parsed.path == "/api/audit":
             content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
             
@@ -459,7 +557,7 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
 
         .layout-grid {
             display: grid;
-            grid-template-columns: 1.1fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 1.75rem;
         }
 
@@ -614,10 +712,112 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             font-size: 0.8rem;
             color: #a5f3fc;
             line-height: 1.6;
-            max-height: 220px;
+            max-height: 200px;
             overflow-y: auto;
             white-space: pre-wrap;
         }
+
+        /* GEMINI AI CHATBOT PANEL STYLES */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 480px;
+            background: #040812;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .chat-history {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-msg {
+            display: flex;
+            flex-direction: column;
+            max-width: 88%;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .chat-msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.2));
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: #fff;
+            padding: 0.75rem 1rem;
+            border-radius: 12px 12px 0 12px;
+        }
+
+        .chat-msg.bot {
+            align-self: flex-start;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #e2e8f0;
+            padding: 0.85rem 1.1rem;
+            border-radius: 12px 12px 12px 0;
+            white-space: pre-wrap;
+        }
+
+        .chat-input-bar {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.95);
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .chat-input {
+            flex: 1;
+            background: #0b1329;
+            border: 1px solid var(--panel-border);
+            color: #fff;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .btn-chat-send {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+            color: #080d1a;
+            border: none;
+            padding: 0 1.25rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-chat-send:hover { opacity: 0.9; }
+
+        .quick-prompts {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        .prompt-tag {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--accent-cyan);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .prompt-tag:hover { background: rgba(0, 242, 254, 0.15); }
 
         .table-container {
             margin-top: 2rem;
@@ -663,7 +863,7 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
         </div>
         <div class="live-status">
             <div class="pulse-dot"></div>
-            <span>PORT 8080 READY</span>
+            <span>GEMINI 2.5 CHATBOT READY</span>
         </div>
     </div>
 
@@ -691,98 +891,134 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
     </div>
 
     <div class="layout-grid">
-        <div class="glass-panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <span>1. Supplier Telemetry & Stress Test</span>
+        <!-- Column 1: Supplier Telemetry & Audit Output -->
+        <div>
+            <div class="glass-panel" style="margin-bottom: 1.75rem;">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>1. Supplier Telemetry & Stress Test</span>
+                    </div>
+                    <div class="scenario-chips">
+                        <button class="chip-btn active" onclick="loadPreset(0)">TC1: Safe</button>
+                        <button class="chip-btn" onclick="loadPreset(1)">TC2: Liquidity</button>
+                        <button class="chip-btn" onclick="loadPreset(2)">TC3: Bottleneck</button>
+                    </div>
                 </div>
-                <div class="scenario-chips">
-                    <button class="chip-btn active" onclick="loadPreset(0)">TC1: Safe</button>
-                    <button class="chip-btn" onclick="loadPreset(1)">TC2: Liquidity</button>
-                    <button class="chip-btn" onclick="loadPreset(2)">TC3: Bottleneck</button>
-                </div>
-            </div>
 
-            <div style="margin-bottom: 1.25rem;">
-                <label style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Select Vendor Record</label>
-                <select id="vendorSelect" onchange="onVendorSelect()" style="width:100%; padding:0.75rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:8px; margin-top:0.4rem; font-family:var(--font-main);">
-                </select>
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span>Quick Liquidity Ratio</span>
-                    <span id="lblQuickRatio">1.80</span>
-                </div>
-                <input type="range" id="rngQuickRatio" min="0.30" max="2.50" step="0.05" value="1.80" oninput="updateSliderLabels()">
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span>Debt-to-Equity Ratio</span>
-                    <span id="lblDebtEquity">1.10</span>
-                </div>
-                <input type="range" id="rngDebtEquity" min="0.50" max="5.00" step="0.10" value="1.10" oninput="updateSliderLabels()">
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span>Active Open PO Value ($)</span>
-                    <span id="lblPoValue">$75,000</span>
-                </div>
-                <input type="range" id="rngPoValue" min="10000" max="1000000" step="10000" value="75000" oninput="updateSliderLabels()">
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span>On-Time Delivery Rate (%)</span>
-                    <span id="lblOnTime">96.0%</span>
-                </div>
-                <input type="range" id="rngOnTime" min="40.0" max="100.0" step="0.5" value="96.0" oninput="updateSliderLabels()">
-            </div>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
-                <div>
-                    <label style="font-size:0.75rem; color:var(--text-muted);">SINGLE SOURCE SUPPLIER</label>
-                    <select id="selSingleSource" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
-                        <option value="0">0 - Multi-Sourced Category</option>
-                        <option value="1">1 - Sole Vendor for Category</option>
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Select Vendor Record</label>
+                    <select id="vendorSelect" onchange="onVendorSelect()" style="width:100%; padding:0.75rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:8px; margin-top:0.4rem; font-family:var(--font-main);">
                     </select>
                 </div>
-                <div>
-                    <label style="font-size:0.75rem; color:var(--text-muted);">CREDIT RATING</label>
-                    <select id="selCreditRating" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
-                        <option value="AA-">AA- (Investment Grade)</option>
-                        <option value="A-">A- (Investment Grade)</option>
-                        <option value="BBB-">BBB- (Minimum Threshold)</option>
-                        <option value="BB+">BB+ (Non-Investment Grade)</option>
-                        <option value="BB">BB (Speculative)</option>
-                        <option value="B-">B- (High Vulnerability)</option>
-                        <option value="CCC+">CCC+ (Default Risk)</option>
-                    </select>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Quick Liquidity Ratio</span>
+                        <span id="lblQuickRatio">1.80</span>
+                    </div>
+                    <input type="range" id="rngQuickRatio" min="0.30" max="2.50" step="0.05" value="1.80" oninput="updateSliderLabels()">
                 </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Debt-to-Equity Ratio</span>
+                        <span id="lblDebtEquity">1.10</span>
+                    </div>
+                    <input type="range" id="rngDebtEquity" min="0.50" max="5.00" step="0.10" value="1.10" oninput="updateSliderLabels()">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Active Open PO Value ($)</span>
+                        <span id="lblPoValue">$75,000</span>
+                    </div>
+                    <input type="range" id="rngPoValue" min="10000" max="1000000" step="10000" value="75000" oninput="updateSliderLabels()">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>On-Time Delivery Rate (%)</span>
+                        <span id="lblOnTime">96.0%</span>
+                    </div>
+                    <input type="range" id="rngOnTime" min="40.0" max="100.0" step="0.5" value="96.0" oninput="updateSliderLabels()">
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem;">
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">SINGLE SOURCE SUPPLIER</label>
+                        <select id="selSingleSource" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
+                            <option value="0">0 - Multi-Sourced Category</option>
+                            <option value="1">1 - Sole Vendor for Category</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">CREDIT RATING</label>
+                        <select id="selCreditRating" style="width:100%; padding:0.6rem; background:#0b1329; border:1px solid var(--panel-border); color:#fff; border-radius:6px; margin-top:0.3rem;" onchange="updateSliderLabels()">
+                            <option value="AA-">AA- (Investment Grade)</option>
+                            <option value="A-">A- (Investment Grade)</option>
+                            <option value="BBB-">BBB- (Minimum Threshold)</option>
+                            <option value="BB+">BB+ (Non-Investment Grade)</option>
+                            <option value="BB">BB (Speculative)</option>
+                            <option value="B-">B- (High Vulnerability)</option>
+                            <option value="CCC+">CCC+ (Default Risk)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn-trigger" onclick="runAutonomousAudit()">⚡ Run Gemini Diligence Audit</button>
             </div>
 
-            <button class="btn-trigger" onclick="runAutonomousAudit()">⚡ Run Gemini Diligence Audit</button>
+            <div class="glass-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>Audit Decision Output</span>
+                    </div>
+                    <span id="auditTimestamp" style="font-size: 0.75rem; color: var(--text-muted);">Ready</span>
+                </div>
+
+                <div id="outputDisplay">
+                    <div style="text-align:center; padding:2rem 1rem; color:var(--text-muted);">
+                        <p style="font-size:0.95rem; margin-bottom:0.5rem;">Click "Run Gemini Diligence Audit" to execute checks.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <!-- Column 2: Live Gemini Enterprise AI Chatbot Assistant -->
         <div class="glass-panel">
             <div class="panel-header">
                 <div class="panel-title">
-                    <span>2. Gemini Agent Audit Assessment</span>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg>
+                    <span>Gemini Universal Enterprise Data Retrieval Chat</span>
                 </div>
-                <span id="auditTimestamp" style="font-size: 0.75rem; color: var(--text-muted);">Ready for Analysis</span>
+                <span style="font-size: 0.75rem; color: var(--accent-cyan);">RAG Connected</span>
             </div>
 
-            <div id="outputDisplay">
-                <div style="text-align:center; padding:3rem 1rem; color:var(--text-muted);">
-                    <p style="font-size:1.1rem; margin-bottom:0.5rem;">Awaiting Supplier Audit Trigger</p>
-                    <p style="font-size:0.8rem;">Click "Run Gemini Diligence Audit" to execute business rules & SOX governance checks.</p>
+            <div class="quick-prompts">
+                <div class="prompt-tag" onclick="sendQuickPrompt('Which vendors are at high risk?')">🔍 High Risk Vendors</div>
+                <div class="prompt-tag" onclick="sendQuickPrompt('Summarize total open PO exposure')">📊 PO Exposure</div>
+                <div class="prompt-tag" onclick="sendQuickPrompt('Check port congestion and logistics signals')">🌐 Port Congestion</div>
+            </div>
+
+            <div class="chat-container">
+                <div class="chat-history" id="chatHistory">
+                    <div class="chat-msg bot">
+🤖 <strong>Aegis Gemini Enterprise Assistant</strong>
+Hello! I have real-time RAG access to Oracle `V_SUPPLIER_RISK_360`, SOX audit logs, and external supply chain risk signals.
+
+Ask me anything about supplier health, PO exposure, or logistics disruptions!
+                    </div>
+                </div>
+
+                <div class="chat-input-bar">
+                    <input type="text" id="chatInput" class="chat-input" placeholder="Type query (e.g., Which vendors have low quick ratio?)..." onkeypress="handleKeyPress(event)">
+                    <button class="btn-chat-send" onclick="sendChatMessage()">Send</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Panel 3: SOX Audit Log Table -->
     <div class="glass-panel" style="margin-top: 2rem;">
         <div class="panel-header">
             <div class="panel-title">
@@ -883,9 +1119,9 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             };
 
             document.getElementById('outputDisplay').innerHTML = `
-                <div style="padding:2rem; text-align:center;">
-                    <div style="color:var(--accent-cyan); font-weight:700; font-size:1.1rem; margin-bottom:0.5rem;">⚡ Gemini Auditor Reasoning in Progress...</div>
-                    <div style="font-size:0.8rem; color:var(--text-muted);">Enforcing Financial Liquidity & Supply Chain Disruption Business Rules</div>
+                <div style="padding:1.5rem; text-align:center;">
+                    <div style="color:var(--accent-cyan); font-weight:700; font-size:1rem; margin-bottom:0.4rem;">⚡ Gemini Reasoning...</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Enforcing Business Rules & SOX Controls</div>
                 </div>
             `;
 
@@ -911,29 +1147,20 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             const badgeClass = 'badge-' + rating;
 
             document.getElementById('outputDisplay').innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-                    <div>
-                        <span class="risk-badge ${badgeClass}">${rating} RISK</span>
-                    </div>
-                    <div style="font-size:0.85rem; color:var(--text-muted);">
-                        SOX Compliance: <strong style="color:${res.sox_compliance_flag ? '#34d399' : '#ff4d7d'};">${res.sox_compliance_flag ? 'PASSED ✅' : 'FLAGGED ⚠️'}</strong>
-                    </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <div><span class="risk-badge ${badgeClass}">${rating} RISK</span></div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">SOX: <strong style="color:${res.sox_compliance_flag ? '#34d399' : '#ff4d7d'};">${res.sox_compliance_flag ? 'PASSED ✅' : 'FLAGGED ⚠️'}</strong></div>
                 </div>
 
                 <div class="action-box">
                     <div class="action-header">
-                        <span class="action-title">RECOMMENDED ORACLE ERP ACTION</span>
+                        <span class="action-title">ACTION TRIGGERED</span>
                         <span class="action-value">${action}</span>
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.8rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:0.75rem; margin-top:0.5rem;">
-                        <div>Financial Risk Index: <strong style="color:var(--accent-cyan);">${res.financial_risk_score}/100</strong></div>
-                        <div>SCM Resilience Index: <strong style="color:var(--accent-indigo);">${res.supply_chain_resilience_score}/100</strong></div>
                     </div>
                 </div>
 
-                <div style="margin-top:1.25rem;">
-                    <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">GEMINI AGENT AUDIT JUSTIFICATION</label>
-                    <div class="reasoning-terminal" style="margin-top:0.4rem;">${res.justification}</div>
+                <div style="margin-top:1rem;">
+                    <div class="reasoning-terminal">${res.justification}</div>
                 </div>
             `;
         }
@@ -962,6 +1189,52 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
             `).join('');
         }
 
+        // CHATBOT FUNCTIONS
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendChatMessage();
+        }
+
+        function sendQuickPrompt(promptText) {
+            document.getElementById('chatInput').value = promptText;
+            sendChatMessage();
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const chatHistory = document.getElementById('chatHistory');
+            
+            // User message bubble
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-msg user';
+            userBubble.innerText = msg;
+            chatHistory.appendChild(userBubble);
+            input.value = '';
+
+            // Bot typing bubble
+            const botBubble = document.createElement('div');
+            botBubble.className = 'chat-msg bot';
+            botBubble.innerHTML = '🤖 <em>Aegis Gemini thinking...</em>';
+            chatHistory.appendChild(botBubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await res.json();
+                botBubble.innerHTML = data.reply;
+            } catch (err) {
+                botBubble.innerHTML = '⚠️ Error retrieving AI chat response: ' + err.message;
+            }
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
         window.onload = init;
     </script>
 </body>
@@ -972,7 +1245,7 @@ def run_server():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("0.0.0.0", PORT), AegisAuditorHandler) as httpd:
         print(f"==========================================================================")
-        print(f"  AEGIS AI AUDITOR - ORACLE FUSION ERP RISK COMMAND CENTER                 ")
+        print(f"  AEGIS AI AUDITOR - ORACLE FUSION ERP RISK COMMAND CENTER + GEMINI CHAT  ")
         print(f"==========================================================================")
         print(f"  Local Listening Endpoint: http://0.0.0.0:{PORT}")
         print(f"  Local Web Dashboard URL  : http://localhost:{PORT}")
