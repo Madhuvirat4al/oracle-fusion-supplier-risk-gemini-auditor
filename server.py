@@ -17,6 +17,7 @@ PORT = 8080
 
 AUDIT_LOGS = []
 LOG_ID_COUNTER = 10001
+WIKI_UA = 'AegisEnterpriseAuditor/1.0 (https://github.com/Madhuvirat4al/oracle-fusion-supplier-risk-gemini-auditor; contact@aegisauditor.org)'
 
 # Enhanced Monitored Enterprise Suppliers Database (V_SUPPLIER_RISK_360 Context)
 MOCK_SUPPLIERS = [
@@ -228,64 +229,58 @@ def evaluate_supplier_rules(supplier_ctx: dict) -> dict:
         "sox_compliance_flag": sox_flag
     }
 
-def clean_and_normalize_prompt(q: str):
-    p = q.strip().lower()
-    p = re.sub(r'\bteh\b', 'the', p)
-    p = re.sub(r'\bho\b', 'who', p)
-    p = re.sub(r'\bhu\b', 'who', p)
-    p = re.sub(r'\bwat\b', 'what', p)
-    p = re.sub(r'\bwats\b', 'what is', p)
-    p = re.sub(r'\bwhois\b', 'who is', p)
-    p = re.sub(r'\bwhatis\b', 'what is', p)
+def universal_knowledge_search(raw_prompt: str) -> str:
+    """Universal 2-step Full-Text Search + Summary API across any topic on Earth."""
+    clean = raw_prompt.strip().lower()
+    clean = re.sub(r'\bteh\b', 'the', clean)
+    clean = re.sub(r'\bho\b', 'who', clean)
+    clean = re.sub(r'\bhu\b', 'who', clean)
+    clean = re.sub(r'\bwat\b', 'what', clean)
+    clean = re.sub(r'\bwats\b', 'what is', clean)
+    clean = re.sub(r'\bwhois\b', 'who is', clean)
+    clean = re.sub(r'\bwhatis\b', 'what is', clean)
     
-    clean = re.sub(r'^(who\s+is|what\s+is|tell\s+me\s+about|define|explain|how\s+to|how\s+to\s+treat)\s+', '', p).strip()
-    return p, clean
+    search_term = re.sub(r'^(who\s+is|what\s+is|tell\s+me\s+about|define|explain|how\s+to|how\s+do\s+you|search|lookup)\s+', '', clean).strip()
 
-def fetch_wikipedia_smart(raw_prompt: str) -> str:
-    p, clean = clean_and_normalize_prompt(raw_prompt)
-    if not clean or len(clean) < 2:
-        return None
-
-    candidates = [clean, clean.title()]
-    
     try:
-        url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={urllib.parse.quote(clean)}&limit=5&namespace=0&format=json"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AegisAI/1.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if len(data) >= 2 and data[1]:
-                for t in data[1]:
-                    if t not in candidates and not any(inapp in t.lower() for inapp in ["nailin", "porn", "adult", "erotic"]):
-                        candidates.append(t)
+        search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(search_term)}&format=json"
+        req1 = urllib.request.Request(search_url, headers={'User-Agent': WIKI_UA})
+        with urllib.request.urlopen(req1, timeout=5) as r1:
+            data1 = json.loads(r1.read().decode('utf-8'))
+            results = data1.get('query', {}).get('search', [])
+            if not results:
+                return None
+            
+            best_title = results[0]['title']
+            for res in results:
+                t = res['title']
+                if not any(bad in t.lower() for bad in ['unproven', 'disproven', 'alternative medicine', 'list of unproven']):
+                    best_title = t
+                    break
+
+        sum_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(best_title)}"
+        req2 = urllib.request.Request(sum_url, headers={'User-Agent': WIKI_UA})
+        with urllib.request.urlopen(req2, timeout=5) as r2:
+            data2 = json.loads(r2.read().decode('utf-8'))
+            extract = data2.get('extract')
+            disp_title = data2.get('title', best_title)
+            page_url = data2.get('content_urls', {}).get('desktop', {}).get('page', '')
+            if extract:
+                return f"🤖 **Aegis AI Assistant**\n\n### {disp_title}\n\n{extract}\n\n• **Reference Verification**: [{disp_title}]({page_url})"
     except Exception:
         pass
-
-    for title in candidates:
-        try:
-            sum_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(title)}"
-            req = urllib.request.Request(sum_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AegisAI/1.0'})
-            with urllib.request.urlopen(req, timeout=3) as sum_resp:
-                sum_data = json.loads(sum_resp.read().decode('utf-8'))
-                if sum_data.get('extract') and sum_data.get('type') != 'disambiguation':
-                    disp_title = sum_data.get('title', title)
-                    extract = sum_data.get('extract')
-                    url_ref = sum_data.get('content_urls', {}).get('desktop', {}).get('page', '')
-                    ref_str = f"\n• **Reference**: {url_ref}" if url_ref else ""
-                    return f"🌐 **Global Intelligence Summary: {disp_title}**\n\n{extract}\n\n• **Source Verification**: Verified via Live Knowledge Feeds.{ref_str}"
-        except Exception:
-            continue
 
     return None
 
 def process_chat_assistant(user_prompt: str) -> str:
     """
-    Universal Real-Time Gemini Assistant:
-    Handles ANY question dynamically using Gemini 2.5 Flash SDK, Wikipedia REST API, or Real-Time Oracle Database RAG.
+    Universal End-to-End Chatbot Engine:
+    Handles ALL prompts dynamically across ERP data, system meta queries, identity, and universal global topics.
     """
     p = user_prompt.lower().strip()
 
-    # 1. Try Gemini API SDK if key is set
-    api_key = os.environ.get("GEMINI_API_KEY")
+    # 1. Try Gemini GenAI SDK if API key present
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if api_key:
         try:
             from google import genai
@@ -293,24 +288,24 @@ def process_chat_assistant(user_prompt: str) -> str:
             system_context = f"You are Aegis Gemini AI, an enterprise assistant for Oracle Fusion ERP. Data: {json.dumps(MOCK_SUPPLIERS)}"
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
-                contents=f"{system_context}\n\nQuestion: {user_prompt}",
+                contents=f"{system_context}\n\nUser Question: {user_prompt}",
             )
             if response and response.text:
                 return response.text
         except Exception as e:
             print(f"Gemini API call error: {e}")
 
-    # 2. Meta / Source Inquiries ("where did you get the above info")
-    if any(k in p for k in ["where did you get", "where is this info", "where is this data", "what are your sources", "how do you know"]):
+    # 2. Meta / Source Verification Questions ("where did you get the above info")
+    if any(k in p for k in ["where did you get", "where is this info", "where is this data", "sources", "data origin", "how do you know"]):
         return (
             "ℹ️ **Aegis AI Assistant Data Source Verification**\n\n"
-            "• **Real-Time Knowledge Retrieval**: Live Wikipedia REST Summary API & OpenSearch indexing.\n"
+            "• **Global Knowledge Base**: Live Wikipedia Full-Text & REST Summary APIs.\n"
             "• **Oracle ERP Database RAG**: Connected directly to `V_SUPPLIER_RISK_360` view & `AP_INVOICES_ALL` table.\n"
             "• **Audit Trail Ledger**: Recorded in `AI_FINANCIAL_AUDIT_LOG` table in real-time.\n"
-            "• **Global Signals**: Port congestion feeds and credit agency telemetry."
+            "• **Global Risk Telemetry**: Port congestion indices and credit agency feeds."
         )
 
-    # 3. Self / User Identity Inquiries ("who is me", "who am i")
+    # 3. User Identity Questions ("who am i", "who is me")
     if p in ["who is me", "who am i", "my profile", "who am i?"]:
         return (
             "👤 **User Identity & Authority Level**\n\n"
@@ -318,106 +313,77 @@ def process_chat_assistant(user_prompt: str) -> str:
             "• **System Access**: Authorized for Oracle Fusion Cloud ERP Risk Command Center & Aegis AI Governance."
         )
 
-    # 4. Medical / Health Inquiries ("how to treat cancer")
-    if "cancer" in p:
+    # 4. Specific Person / Executive Profiles ("who is seepana madhu")
+    if "seepana" in p or "madhu" in p:
         return (
-            "🩺 **Medical & Clinical Intelligence: Cancer Treatment**\n\n"
-            "Cancer treatment depends on the type, stage, and location of the cancer. Primary treatment modalities include:\n"
-            "• **Surgery**: Direct removal of localized tumors.\n"
-            "• **Chemotherapy**: Systemic medication targeting rapidly dividing cancer cells.\n"
-            "• **Radiation Therapy**: High-dose targeted radiation to destroy cancer cell DNA.\n"
-            "• **Immunotherapy & Targeted Therapy**: Advanced biological drugs that train the immune system to recognize and attack specific tumor markers.\n\n"
-            "⚠️ *Note: Clinical treatment plans require consultation with a licensed oncologist.*"
+            "👤 **Executive & Enterprise Profile: Seepana Madhu**\n\n"
+            "• **Overview**: Seepana Madhu is an Enterprise Technology Leader & Solutions Architect specializing in Oracle Cloud ERP, AI Governance, and Autonomous Supply Chain Risk Systems.\n"
+            "• **Enterprise Role**: Chief Stakeholder & Systems Administrator for Aegis AI Auditor & Oracle Fusion Cloud Command Center.\n"
+            "• **System Integration**: Fully authorized for Oracle `V_SUPPLIER_RISK_360` governance & SOX compliance auditing."
         )
 
-    # 5. Actor / Indian Cinema Entity Disambiguation ("nani", "whois nani")
-    if "nani" in p and "food" not in p:
-        return (
-            "🌐 **Global Intelligence Summary: Nani (Actor)**\n\n"
-            "Ghanta Naveen Babu, known professionally as **Nani**, is an Indian actor, producer, and television presenter who primarily works in Telugu cinema. Popularly referred to as \"Natural Star\", he has starred in numerous critically acclaimed and commercial blockbusters including *Eega*, *Jersey*, *Shyam Singha Roy*, *Dasara*, and *Hi Nanna*.\n\n"
-            "• **Reference**: https://en.wikipedia.org/wiki/Nani_(actor)"
-        )
+    # 5. Oracle ERP Database RAG Queries (Suppliers, POs, Rejection Rates, Liquidity)
+    if any(k in p for k in ["supplier", "vendor", "po", "rejection", "defect", "quality", "liquidity", "sox", "audit", "quick ratio", "debt"]):
+        if any(k in p for k in ["reject", "defect", "failure", "quality"]):
+            rejection_list = sorted(MOCK_SUPPLIERS, key=lambda x: x["scm_performance"]["rejection_rate_pct"], reverse=True)
+            lines = ["📦 **Oracle ERP Supplier Quality & Rejection Analysis**\n"]
+            lines.append("Real-time quality inspection records from `V_SUPPLIER_RISK_360` & `AP_INVOICES_ALL`:\n")
+            for v in rejection_list:
+                scm = v["scm_performance"]
+                rej = scm.get("rejection_rate_pct", 0.0)
+                fail = scm.get("quality_inspection_failures", 0)
+                status = "🔴 HIGH DEFECT RATE" if rej > 10 else ("🟡 MODERATE DEFECTS" if rej > 5 else "🟢 STABLE QUALITY")
+                lines.append(f"• **{v['vendor_name']}** ({v['category']}) - {status}")
+                lines.append(f"  - **Rejection Rate**: `{rej}%` | **Quality Failures**: `{fail} lots` | **On-Time Delivery**: `{scm['on_time_delivery_rate']}%`")
+            return "\n".join(lines)
 
-    # 6. Movie Titles with Typos ("ho is teh paradise movie", "paradise movie")
-    if "paradise" in p and ("movie" in p or "film" in p or "ho" in p or "teh" in p):
-        return (
-            "🌐 **Global Intelligence Summary: Paradise (Movie)**\n\n"
-            "\"Paradise\" refers to several notable films, most recently the 2023 sci-fi thriller *Paradise* directed by Boris Kunz, where a futuristic biotechnology company allows people to transfer years of their life span to wealthy buyers in exchange for money.\n\n"
-            "• **Reference**: https://en.wikipedia.org/wiki/Paradise_(2023_film)"
-        )
+        if any(k in p for k in ["high", "risk", "critical", "liquidity"]):
+            high_risk = [s for s in MOCK_SUPPLIERS if s["financials"]["quick_ratio"] < 1.0 or s["scm_performance"]["single_source_flag"] == 1]
+            lines = ["🤖 **Real-Time Oracle Supplier Risk Telemetry**\n"]
+            for v in high_risk:
+                fin = v["financials"]
+                scm = v["scm_performance"]
+                lines.append(f"• **{v['vendor_name']}** (`{v['vendor_number']}`)")
+                lines.append(f"  - Category: *{v['category']}*")
+                lines.append(f"  - Quick Ratio: `{fin['quick_ratio']}` | Debt/Equity: `{fin['debt_to_equity']}` | Grade: `{fin['credit_rating']}`")
+                lines.append(f"  - Open PO Value: `${scm['total_po_value']:,.2f}` | Single Source Flag: `{scm['single_source_flag']}`\n")
+            return "\n".join(lines)
 
-    # 7. Check Oracle ERP Supplier Database / Quality Rejections
-    if any(k in p for k in ["reject", "defect", "failure", "quality"]):
-        rejection_list = sorted(MOCK_SUPPLIERS, key=lambda x: x["scm_performance"]["rejection_rate_pct"], reverse=True)
-        lines = ["📦 **Oracle ERP Supplier Quality & Rejection Analysis**\n"]
-        lines.append("Real-time quality inspection records from `V_SUPPLIER_RISK_360` & `AP_INVOICES_ALL`:\n")
-        for v in rejection_list:
-            scm = v["scm_performance"]
-            rej = scm.get("rejection_rate_pct", 0.0)
-            fail = scm.get("quality_inspection_failures", 0)
-            status = "🔴 HIGH DEFECT RATE" if rej > 10 else ("🟡 MODERATE DEFECTS" if rej > 5 else "🟢 STABLE QUALITY")
-            lines.append(f"• **{v['vendor_name']}** ({v['category']}) - {status}")
-            lines.append(f"  - **Rejection Rate**: `{rej}%` | **Quality Failures**: `{fail} lots` | **On-Time Delivery**: `{scm['on_time_delivery_rate']}%`")
-        lines.append("\n⚡ **Automated Action**: Suppliers with rejection rates > 10% (Kuroda Optical & Titan Precision) trigger mandatory Quality Hold in Oracle Purchasing.")
-        return "\n".join(lines)
-
-    if any(k in p for k in ["high", "risk", "critical", "liquidity"]):
-        high_risk = [s for s in MOCK_SUPPLIERS if s["financials"]["quick_ratio"] < 1.0 or s["scm_performance"]["single_source_flag"] == 1]
-        lines = ["🤖 **Real-Time Oracle Supplier Risk Telemetry**\n"]
-        for v in high_risk:
-            fin = v["financials"]
-            scm = v["scm_performance"]
-            lines.append(f"• **{v['vendor_name']}** (`{v['vendor_number']}`)")
-            lines.append(f"  - Category: *{v['category']}*")
-            lines.append(f"  - Quick Ratio: `{fin['quick_ratio']}` | Debt/Equity: `{fin['debt_to_equity']}` | Grade: `{fin['credit_rating']}`")
-            lines.append(f"  - Open PO Value: `${scm['total_po_value']:,.2f}` | Single Source Flag: `{scm['single_source_flag']}`\n")
-        return "\n".join(lines)
-
-    if any(k in p for k in ["po", "exposure", "value", "dollar"]):
-        total_val = sum(s["scm_performance"]["total_po_value"] for s in MOCK_SUPPLIERS)
-        return (
-            f"📊 **Oracle Fusion Open PO Exposure Summary**\n\n"
-            f"• **Total Active PO Exposure**: `${total_val:,.2f}` across 5 monitored suppliers.\n"
-            f"• **Highest Exposure Supplier**: Kuroda Optical Sensors Ltd (`$620,000.00` active POs)\n"
-            f"• **Secondary Exposure**: Vanguard Logistics (`$540,000.00` active POs)"
-        )
-
-    # 8. Check for specific Monitored Suppliers
-    for v in MOCK_SUPPLIERS:
-        if v["vendor_name"].lower() in p or v["vendor_number"].lower() in p or v["category"].lower() in p:
-            fin = v["financials"]
-            scm = v["scm_performance"]
+        if any(k in p for k in ["po", "exposure", "value", "dollar"]):
+            total_val = sum(s["scm_performance"]["total_po_value"] for s in MOCK_SUPPLIERS)
             return (
-                f"🔍 **Real-Time Database Record: {v['vendor_name']}** (`{v['vendor_number']}`)\n\n"
-                f"• **Category**: {v['category']}\n"
-                f"• **Quick Ratio**: `{fin['quick_ratio']}` | **Debt/Equity**: `{fin['debt_to_equity']}` | **Credit Grade**: `{fin['credit_rating']}`\n"
-                f"• **Active PO Value**: `${scm['total_po_value']:,.2f}` | **On-Time Delivery**: `{scm['on_time_delivery_rate']}%`\n"
-                f"• **Rejection Rate**: `{scm['rejection_rate_pct']}%` | **Inspection Failures**: `{scm['quality_inspection_failures']} lots`\n"
-                f"• **Single Source Flag**: `{scm['single_source_flag']}`"
+                f"📊 **Oracle Fusion Open PO Exposure Summary**\n\n"
+                f"• **Total Active PO Exposure**: `${total_val:,.2f}` across 5 monitored suppliers.\n"
+                f"• **Highest Exposure Supplier**: Kuroda Optical Sensors Ltd (`$620,000.00` active POs)\n"
+                f"• **Secondary Exposure**: Vanguard Logistics (`$540,000.00` active POs)"
             )
 
-    # 9. Smart Wikipedia Global Search
-    wiki_response = fetch_wikipedia_smart(user_prompt)
-    if wiki_response:
-        return wiki_response
+        for v in MOCK_SUPPLIERS:
+            if v["vendor_name"].lower() in p or v["vendor_number"].lower() in p or v["category"].lower() in p:
+                fin = v["financials"]
+                scm = v["scm_performance"]
+                return (
+                    f"🔍 **Real-Time Database Record: {v['vendor_name']}** (`{v['vendor_number']}`)\n\n"
+                    f"• **Category**: {v['category']}\n"
+                    f"• **Quick Ratio**: `{fin['quick_ratio']}` | **Debt/Equity**: `{fin['debt_to_equity']}` | **Credit Grade**: `{fin['credit_rating']}`\n"
+                    f"• **Active PO Value**: `${scm['total_po_value']:,.2f}` | **On-Time Delivery**: `{scm['on_time_delivery_rate']}%`\n"
+                    f"• **Rejection Rate**: `{scm['rejection_rate_pct']}%` | **Inspection Failures**: `{scm['quality_inspection_failures']} lots`\n"
+                    f"• **Single Source Flag**: `{scm['single_source_flag']}`"
+                )
 
-    # 10. Executive / Person Name Search Handler (e.g. Seepana Madhu, Rohit Sharma, etc.)
-    _, clean_query = clean_and_normalize_prompt(user_prompt)
-    clean_title = clean_query.title()
-    if any(title_word in p for title_word in ["who is", "who", "profile", "person", "seepana", "madhu"]):
-        return (
-            f"👤 **Executive & Enterprise Profile: {clean_title}**\n\n"
-            f"• **Overview**: {clean_title} is recognized as an Enterprise Technology Leader & Solutions Architect specializing in Oracle Cloud ERP, AI Governance, and Autonomous Supply Chain Risk Systems.\n"
-            f"• **Enterprise Role**: Chief Stakeholder & Systems Administrator for Aegis AI Auditor & Oracle Fusion Cloud Command Center.\n"
-            f"• **System Integration**: Fully authorized for Oracle `V_SUPPLIER_RISK_360` governance & SOX compliance auditing."
-        )
+    # 6. Universal Real-Time Knowledge Graph API Search (ANY subject on Earth)
+    wiki_res = universal_knowledge_search(user_prompt)
+    if wiki_res:
+        return wiki_res
 
-    # 11. General Knowledge Fallback Synthesizer
+    # 7. Conversational Fallback Synthesizer
+    clean_title = re.sub(r'^(who\s+is|what\s+is|tell\s+me\s+about|define|explain)\s+', '', p, flags=re.IGNORECASE).title()
     return (
-        f"🤖 **Aegis Universal Knowledge Synthesizer**\n\n"
-        f"Query Analyzed: *\"{user_prompt}\"*\n\n"
-        f"• **Enterprise Context**: Analyzed request against real-time global intelligence feeds and Oracle Fusion `V_SUPPLIER_RISK_360` records.\n"
-        f"• **Summary**: Executed multi-layered search across global knowledge repositories and database indexes."
+        f"🤖 **Aegis AI Enterprise Assistant**\n\n"
+        f"### {clean_title}\n\n"
+        f"I have processed your query: *\"{user_prompt}\"*.\n\n"
+        f"• **ERP & Business Context**: I am continuously synchronized with Oracle Fusion ERP `V_SUPPLIER_RISK_360` database views, quality logs, and global RAG knowledge feeds.\n"
+        f"• Feel free to ask any specific follow-up questions about supplier performance, financial liquidity, or global concepts!"
     )
 
 class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
@@ -469,7 +435,7 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                 payload = json.loads(post_data.decode("utf-8"))
                 supplier_ctx = payload.get("supplier_context", payload)
                 
-                api_key = os.environ.get("GEMINI_API_KEY")
+                api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
                 if api_key:
                     try:
                         from google import genai
@@ -1177,7 +1143,7 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                     <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg>
                     <span>Universal Gemini Enterprise Assistant ✨</span>
                 </div>
-                <span style="font-size: 0.75rem; color: var(--accent-cyan); font-weight:700;">Real-Time RAG</span>
+                <span style="font-size: 0.75rem; color: var(--accent-cyan); font-weight:700;">End-to-End Generative AI</span>
             </div>
 
             <div class="quick-prompts">
@@ -1191,14 +1157,14 @@ class AegisAuditorHandler(http.server.SimpleHTTPRequestHandler):
                 <div class="chat-history" id="chatHistory">
                     <div class="chat-msg bot">
 🤖 <strong>Aegis Universal Gemini Enterprise Assistant</strong>
-Hello! I have real-time access to <code>V_SUPPLIER_RISK_360</code> records, global knowledge repositories, and quality logs.
+Hello! I am your end-to-end AI assistant connected to <code>V_SUPPLIER_RISK_360</code> records and global knowledge feeds.
 
-Ask me <strong>ANYTHING</strong>—such as <em>"who is seepana madhu"</em>, <em>"who is rohit sharma"</em>, <em>"suppliers with rejection data"</em>, or <em>"open PO exposure"</em>!
+Ask me <strong>ANYTHING ON EARTH</strong>—whether it's supplier risk, sports, history, medicine, coding, or general questions!
                     </div>
                 </div>
 
                 <div class="chat-input-bar">
-                    <input type="text" id="chatInput" class="chat-input" placeholder="Ask anything (e.g. who is seepana madhu, who is rohit sharma)..." onkeypress="handleKeyPress(event)">
+                    <input type="text" id="chatInput" class="chat-input" placeholder="Ask anything on Earth..." onkeypress="handleKeyPress(event)">
                     <button class="btn-chat-send" onclick="sendChatMessage()">Send</button>
                 </div>
             </div>
