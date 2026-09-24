@@ -1,0 +1,21 @@
+{
+  "supplier_context": {
+    "vendor_id": 100492,
+    "vendor_name": "Apex Global Logistics Corp",
+    "financials": {
+      "quick_ratio": 0.82,
+      "debt_to_equity": 3.10,
+      "credit_rating": "BB+"
+    },
+    "scm_performance": {
+      "total_po_value": 450000.00,
+      "avg_payment_delay_days": 42,
+      "on_time_delivery_rate": 74.5,
+      "single_source_flag": 1
+    },
+    "external_risk_signals": {
+      "port_congestion_index": "HIGH",
+      "recent_credit_downgrade": true
+    }
+  }
+}
